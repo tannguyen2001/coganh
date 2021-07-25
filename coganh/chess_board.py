@@ -1,13 +1,15 @@
+from coganh.logic import Logic
 from coganh.player import Player
 from typing import List
 from coganh.chessman import Chessman
-from coganh.config import BG_COLOR, BOARD_SIZE, CHESS_SIZE, CHET_RULE, GANH_RULE, HINT_COLOR, LINE_COLOR, VAY_RULE
+from coganh.config import BG_COLOR, BOARD_SIZE, CHESS_SIZE, HINT_COLOR, LINE_COLOR
 from coganh.config import LINE_WIDTH, P1_COLOR, P2_COLOR, POINT_SIZE
-from coganh.utils import toLogicalPosition, toVisualPosition, initialBoard
+from coganh.utils import ResetException, WrongMoveException, toLogicalPosition, toVisualPosition, initialBoard
 from coganh.utils import boardHelper, symmetricHelper, PlayingTimeoutError
 import threading
 import tkinter.messagebox as mes
 import tkinter as tk
+import time
 
 class ChessBoard(tk.Canvas):
     board: List[List[Chessman]]
@@ -50,15 +52,13 @@ class ChessBoard(tk.Canvas):
         self.bind('<Button-1>', self.onClick)
         self.chessmanToMove = None
         # Status of game
-        self.isPlaying = False
         self.forceFinish = False
-        self.pack()
-
-    def startGame(self):
-        self.resetBoard()
         self.isPlaying = True
+        self.player = Player.playerList[0]
+        self.initializeBoard()
         self.thread = threading.Thread(target=self.playGame, daemon=True)
         self.thread.start()
+        self.pack()
 
     def playGame(self):
         while not self.isFinish():
@@ -67,23 +67,11 @@ class ChessBoard(tk.Canvas):
             self.isPlaying = False
 
     def callNext(self):
-        self.player = Player.next()
-        # Get covered chessmans
-        if VAY_RULE:
-            for row in self.board:
-                for chess in row:
-                    visitted = set()
-                    if (chess is not None and chess.player is self.player
-                            and not chess.canMove(visitted)):
-                        for changePoint in visitted:
-                            changePos = (changePoint.x, changePoint.y)
-                            self.eatChessman(changePos)
-        if self.isFinish():
-            return
         board = self.getSummaryBoard()
         player = self.player.id
-        print(f"Turn of '{self.player.label}'")
+        print(f"------ Turn '{self.player.label}' ------")
         event = threading.Event()
+        startTime = time.time()
         try:
             if not self.player.isMan():
                 def moveFunc():
@@ -100,14 +88,38 @@ class ChessBoard(tk.Canvas):
                 return
             (fromPos, toPos) = moveLogic
             move = ((fromPos[1], fromPos[0]), (toPos[1], toPos[0]))
-            self.moveChessman(*move)
-            self.eatChessmans(move[1])
+            if Logic.checkValidMove(board, move):
+                self.moveChessman(move)
+                board = self.getSummaryBoard()
+                # print("----Before----")
+                # print(*board)
+                Logic.getBoardAfterMove(board, player, move[1])
+                # print("----After----")
+                # print(*board)
+                self.parseBoardChange(board)
+            else:
+                raise WrongMoveException()
         except PlayingTimeoutError:
             self.forceFinish = True
-            print("Player take too much time to play")
+            print(f"'{self.player.label}' take too much time to play")
+        except WrongMoveException:
+            print(f"'{self.player.label}' had a wrong move!")
+            self.player.hasWrongMove()
+            return
         except Exception as e:
             print(e)
             raise
+        finally:
+            self.player.addTime(time.time() - startTime)
+            print(f"'{self.player.label}' had run in {self.player.getTime()}!")
+        self.player = Player.next()
+
+    def parseBoardChange(self, newBoard):
+        for x in range(5):
+            for y in range(5):
+                if (self.board[y][x] is not None
+                        and self.board[y][x].player.id != newBoard[y][x]):
+                    self.eatChessman((x, y))
 
     def getSummaryBoard(self):
         sumBoard = []
@@ -181,86 +193,24 @@ class ChessBoard(tk.Canvas):
         else:
             return None
 
-    def moveChessman(self, fromLogical, toLogical, **kwargs):
-        (fx, fy) = fromLogical
-        (tx, ty) = toLogical
-        if ((ty, tx) in boardHelper[fy][fx]
-            and self.board[fy][fx] is not None
-            and self.board[ty][tx] is None
-        ):
-            self.clearTemp()
-            fromx, fromy = toVisualPosition(*fromLogical)
-            tox, toy = toVisualPosition(*toLogical)
-            chessman = self.board[fy][fx]
-            chessman.onMove(toLogical)
-            self.drawLine(
-                fromLogical, toLogical, width=LINE_WIDTH*3, fill=HINT_COLOR,
-                tag='temp'
-            )
-            self.drawCircle(
-                fromLogical, POINT_SIZE, fill=HINT_COLOR, width=LINE_WIDTH,
-                outline=HINT_COLOR, tag='temp'
-            )
-            self.move(chessman.id, tox-fromx, toy-fromy, **kwargs)
-            self.lift(chessman.id)
-        else:
-            self.player = Player.prev()
-            print("Failed to move")
-
-    def eatChessmans(self, pos):
-        (x, y) = pos
-        unvisit = list.copy(boardHelper[x][y])
-        changed = set()
-        # Get carried chessmans
-        if GANH_RULE:
-            self.eatBySymmetries(pos, unvisit, changed)
-        # Get carrying chessmans
-        if CHET_RULE:
-            for chessPos in unvisit:
-                (cx, cy) = chessPos
-                chess = self.board[cy][cx]
-                if chess is None or chessPos in changed:
-                    unvisit.remove(chessPos)
-                    continue
-                if self.player is not chess.player:
-                    self.eatBySymmetries(chessPos, unvisit, changed, pos)
-
-    def eatBySymmetries(self, pos, unvisit, changed, center = None):
-        (x, y) = pos
-        symmetries = symmetricHelper[x][y]
-        if center is not None:
-            (cx, cy) = center
-            centerChess = self.board[cy][cx]
-        for sym in symmetries:
-            (x1, y1) = sym[0]
-            (x2, y2) = sym[1]
-            chess1 = self.board[y1][x1]
-            chess2 = self.board[y2][x2]
-            if chess1 is None or chess2 is None:
-                if chess1 is None and sym[0] in unvisit:
-                    unvisit.remove(sym[0])
-                if chess2 is None and sym[1] in unvisit:
-                    unvisit.remove(sym[1])
-                continue
-            if (center is not None and chess1 is not centerChess
-                    and chess2 is not centerChess):
-                continue
-            c1Player = chess1.player
-            c2Player = chess2.player
-            if c1Player is c2Player:
-                if self.player is not c1Player:
-                    if sym[0] not in changed and sym[1] not in changed:
-                        self.eatChessman(sym[0])
-                        self.eatChessman(sym[1])
-                        unvisit.remove(sym[0])
-                        unvisit.remove(sym[1])
-                        changed.add(sym[0])
-                        changed.add(sym[1])
-                elif center is not None:
-                    if pos not in changed:
-                        self.eatChessman(pos)
-                        unvisit.remove(pos)
-                        changed.add(pos)
+    def moveChessman(self, move, **kwargs):
+        (fx, fy) = move[0]
+        (tx, ty) = move[1]
+        self.clearTemp()
+        fromx, fromy = toVisualPosition(fx, fy)
+        tox, toy = toVisualPosition(tx, ty)
+        chessman = self.board[fy][fx]
+        chessman.onMove(move[1])
+        self.drawLine(
+            move[0], move[1], width=LINE_WIDTH*3, fill=HINT_COLOR,
+            tag='temp'
+        )
+        self.drawCircle(
+            move[0], POINT_SIZE, fill=HINT_COLOR, width=LINE_WIDTH,
+            outline=HINT_COLOR, tag='temp'
+        )
+        self.move(chessman.id, tox-fromx, toy-fromy, **kwargs)
+        self.lift(chessman.id)
 
     def eatChessman(self, pos):
         (x, y) = pos
@@ -268,7 +218,7 @@ class ChessBoard(tk.Canvas):
         chess.onEaten()
         self.addtag_withtag("eatenChess", chess.id)
         self.itemconfig(chess.id, fill=chess.player.color,
-            outline=chess.player.next.color, width=LINE_WIDTH)
+            outline=chess.player.opposite.color, width=LINE_WIDTH*2)
 
     def onClick(self, event):
         if self.player.isMan() and self.isPlaying:
@@ -285,7 +235,8 @@ class ChessBoard(tk.Canvas):
                     self.player.outputPos = ((fy,fx),(y,x))
                     self.player.isClicked.set()
                     #self.moveChessman((fx,fy),(x,y))
-                elif self.board[y][x].player is self.player:
+                elif (self.board[y][x] is not None
+                        and self.board[y][x].player is self.player):
                     print(f'Click on ({y}, {x})')
                     self.chessmanToMove = (x, y)
                 else:
@@ -310,12 +261,16 @@ class ChessBoard(tk.Canvas):
                 message="Bạn có muốn quay lại trang chính không?"
             ):
                 return False
-        self.forceFinish = True
-        self.player.isClicked.set()
-        self.thread.join(1)
-        self.isPlaying = False
         self.destroy()
         return True
+
+    def destroy(self) -> None:
+        self.forceFinish = True
+        self.isPlaying = False
+        self.player.isClicked.set()
+        self.thread.join(1)
+        Player.reset()
+        return super().destroy()
 
     def initializeBoard(self):
         # Draw board
@@ -325,12 +280,6 @@ class ChessBoard(tk.Canvas):
                     self.initialBoard[i][j],(j,i)
                 )
 
-    def clearBoard(self):
-        for i in range(5):
-            for j in range(5):
-                self.board[i][j] = None
-        self.delete('chessman')
-
     def clearTemp(self):
         self.delete('temp')
         self.itemconfig("eatenChess", width=0)
@@ -338,13 +287,6 @@ class ChessBoard(tk.Canvas):
 
     def clearHint(self):
         self.delete('hint')
-
-    def resetBoard(self):
-        self.forceFinish = False
-        Player.reset()
-        self.clearTemp()
-        self.clearBoard()
-        self.initializeBoard()
 
     def pack(self):
         tk.Canvas.pack(self, padx=10, pady=10)

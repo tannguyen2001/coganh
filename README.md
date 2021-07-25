@@ -7,4 +7,4 @@ bot chơi hay nhất.
 yêu cầu
 
 - Mặc định luật Chẹt sẽ bị tắt, nếu muốn bật thì vào coganh/config.py sửa
-CHET_RULE thành True
+bit thứ 3 của RULE thành 1

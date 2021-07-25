@@ -98,6 +98,12 @@ class ScreenFrame(ttk.Frame):
 class PlayingTimeoutError(Exception):
     pass
 
+class WrongMoveException(Exception):
+    pass
+
+class ResetException(Exception):
+    pass
+
 def toLogicalPosition(x, y):
     pad = CHESS_SIZE/2 + 2
     r = CHESS_SIZE/2

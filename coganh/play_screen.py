@@ -14,7 +14,6 @@ class PlayScreen(Screen):
     def place(self):
         # Initalize board
         self.root.board = self.createBoard()
-        self.root.board.startGame()
         return super().place()
     def createBoard(self):
         size = BOARD_SIZE+CHESS_SIZE+4
@@ -22,6 +21,9 @@ class PlayScreen(Screen):
             self.root.play.main.mainBoard, width=size, height=size, bg=BG_COLOR,
             bd=0, highlightthickness=0
         )
+    def resetBoard(self):
+        self.root.board.destroy()
+        self.root.board = self.createBoard()
 
 class PlayMain(ScreenFrame):
     def __init__(self, *args, **kwargs):
@@ -62,7 +64,7 @@ class PlaySideBar(ScreenFrame):
         if board.onExit():
             self.root.navigator.pop()
     def reset(self):
-        return self.root.board.resetBoard()
+        return self.root.play.resetBoard()
     def pack(self):
         ScreenFrame.pack(self, side='left', fill='both', expand=True)
 

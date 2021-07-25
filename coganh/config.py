@@ -9,7 +9,6 @@ CHESS_SIZE = 40
 POINT_SIZE = 10
 LINE_WIDTH = 3
 FONT = [None, 18]
-# Rules
-GANH_RULE = True
-CHET_RULE = False
-VAY_RULE = True
+# Current Rule in 3 bit
+# 0b{Gánh}{Chẹt}{Vây}
+RULE = 0b101

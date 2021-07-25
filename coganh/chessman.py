@@ -20,7 +20,7 @@ class Chessman:
         )
 
     def onEaten(self):
-        self.player = self.player.next
+        self.player = self.player.opposite
 
     def canMove(self, visitted):
         if self in visitted:

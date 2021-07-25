@@ -20,9 +20,24 @@ class Player:
         self.color = color
         self.isClicked = threading.Event()
         self.outputPos = None
-        self.next = None
+        self.opposite = None
+        self._time = 0
+        self._wrongMove = 0
         Player.playerList.append(self)
         # print(optionList)
+
+    def getTime(self):
+        return self._time
+
+    def addTime(self, time):
+        self._time += time
+
+    def hasWrongMove(self):
+        self._wrongMove += 1
+
+    def resetPlayer(self):
+        self._time = 0
+        self._wrongMove = 0
 
     def isMan(self):
         return Player.optionList.index(self.name) == 0
@@ -49,21 +64,24 @@ class Player:
 
     @classmethod
     def connect(cls):
-        cls.playerList[0].next = cls.playerList[1]
-        cls.playerList[1].next = cls.playerList[0]
+        cls.playerList[0].opposite = cls.playerList[1]
+        cls.playerList[1].opposite = cls.playerList[0]
         return [cls.playerList[0], cls.playerList[1]]
 
     @classmethod
     def next(cls):
-        index = (cls.step)%2
+        index = (cls.step + 1)%2
         cls.step += 1
         return cls.playerList[index]
+
     @classmethod
     def prev(cls):
-        index = (cls.step)%2
+        index = (cls.step + 1)%2
         cls.step -= 1
         return cls.playerList[index]
 
     @classmethod
     def reset(cls):
         cls.step = 0
+        for player in cls.playerList:
+            player.resetPlayer()
