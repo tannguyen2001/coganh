@@ -1,3 +1,4 @@
+#main
 import sys
 from coganh import App
 
