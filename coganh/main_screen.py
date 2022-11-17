@@ -61,16 +61,16 @@ class ButtonSide(ScreenFrame):
         self.playButton = ttk.Button(
             self, text="Đấu", command=lambda: self.root.navigator.push(self.root.play)
         )
-        self.batchPlayButton = ttk.Button(
-            self, text="Đấu Hàng Loạt",
-            command=lambda: self.root.navigator.push(self.root.batch)
-        )
+        # self.batchPlayButton = ttk.Button(
+        #     self, text="Đấu Hàng Loạt",
+        #     command=lambda: self.root.navigator.push(self.root.batch)
+        # )
         self.playButton.pack(
             side="left", fill="both", expand=True, padx=20, pady=20
         )
-        self.batchPlayButton.pack(
-            side="left", fill="both", expand=True, padx=20, pady=20
-        )
+        # self.batchPlayButton.pack(
+        #     side="left", fill="both", expand=True, padx=20, pady=20
+        # )
         self.pack()
     def pack(self):
         ScreenFrame.pack(self, side="top", fill="both")
